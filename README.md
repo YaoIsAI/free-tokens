@@ -2,8 +2,8 @@
 
 <p align="center">
   <a href="https://free-tokens.org"><img src="./public/poster-home.png" width="240" alt="free-tokens 首页 - 免费大模型 Token 聚合"></a>
-  <a href="https://free-tokens.org/tools"><img src="./public/poster-tools.png" width="240" alt="free-tokens 工具导航 - 97 款 AI 官网一站直达"></a>
-  <a href="https://free-tokens.org/help"><img src="./public/poster-community.png" width="240" alt="free-tokens 社区贡献 - 人人可发布人人可领取"></a>
+  <a href="#站点预览"><img src="./public/poster-tools.png" width="240" alt="free-tokens 工具导航 - 97 款 AI 官网"></a>
+  <a href="#站点预览"><img src="./public/poster-community.png" width="240" alt="free-tokens 社区贡献 - 人人可发布"></a>
   <br>
   <em>线上体验：<a href="https://free-tokens.org">free-tokens.org</a>（SEO 主域） · <a href="https://freeapis.top">freeapis.top</a>（备用）</em>
 </p>
@@ -22,14 +22,18 @@
 ## 站点预览
 
 <p align="center">
-  <img src="./public/poster-home.png" width="600" alt="free-tokens 首页 - 免费大模型 Token 聚合">
+  <img src="./public/screenshot.png" width="900" alt="free-tokens 线上首页实拍 - 聚合浏览与 Token 卡片">
   <br>
-  <img src="./public/poster-tools.png" width="600" alt="free-tokens 工具导航 - 97 款 AI 官网">
-  <br>
-  <img src="./public/poster-community.png" width="600" alt="free-tokens 社区贡献 - 人人可发布人人可领取">
+  <em>线上 <a href="https://free-tokens.org">free-tokens.org</a> / <a href="https://freeapis.top">freeapis.top</a> 真实运营环境 · 本仓库 clone 后 npm start 是空白骨架（无 Token 数据），开源目的让开发者专注改进应用本身</em>
 </p>
 
-> 上图均来自线上 `free-tokens.org / freeapis.top` 真实运营环境。本仓库 `clone` 下来 `npm start` 后是一份**空白骨架**（无 Token 数据、无用户），这正是开源的目的 —— 让开发者专注改进应用本身，共同把站点做得更好。
+<p align="center">
+  <img src="./public/poster-home.png" width="280" alt="海报：免费大模型 Token 聚合">
+  <img src="./public/poster-tools.png" width="280" alt="海报：AI 工具一站直达">
+  <img src="./public/poster-community.png" width="280" alt="海报：人人可发布人人可领取">
+</p>
+
+> 上方三张海报仅作宣传物料，与实拍截图互补；本仓库 `clone` 下来 `npm start` 后是一份**空白骨架**（无 Token 数据、无用户），开源目的让开发者专注改进应用本身。
 
 ## 目录
 
@@ -142,6 +146,7 @@ freeapis-cli recent -n 5                   # 每日免费 5 次
 ├── lib/                   # db.js / auth.js / layout.js / points.js / og-card.js / analytics.js
 ├── public/                # 前端（app.js / dash.js / styles.css / upload.js / md.js / checkin.js / sponsor.js）
 ├── public/poster-*.png    # README 宣传海报（首页 / 工具 / 社区）
+├── public/screenshot.png  # README 站点预览实拍
 ├── data/ai-tools.js       # 工具导航策展（97 款，可被 PR 更新）
 ├── scripts/               # build-cli-package / check
 ├── tests/                 # doc-consistency / api / cli / cli-e2e / playwright-*
@@ -187,7 +192,6 @@ npm install && npm start
 | `CLAUDE.md` | AI 操作速查 |
 | `POINTS.md` | 积分规则源码级 |
 | `CONTRIBUTING.md` | 贡献指南 |
-| `CHANGELOG.md` | 变更日志 |
 
 ## 宣传物料
 
