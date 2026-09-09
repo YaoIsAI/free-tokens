@@ -1,0 +1,16 @@
+node_modules/
+.env
+data/tokens.json
+data/users.json
+data/*.db
+data/*.db-wal
+data/*.db-shm
+data/uploads/
+data/skill-files/
+tests/*.png
+test-results/
+.forge-state.json
+.forge-hook.log
+.cli-package/
+*.tgz.tmp
+.claude/

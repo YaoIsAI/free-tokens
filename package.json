@@ -1,0 +1,40 @@
+{
+  "name": "token-charity-station",
+  "version": "1.0.0",
+  "description": "Token公益站 - 免费Token信息聚合平台",
+  "main": "server.js",
+  "bin": {
+    "token": "./cli.js"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "cli": "node cli.js",
+    "build:cli": "node scripts/build-cli-package.js",
+    "check": "node scripts/check.js",
+    "test": "node --test tests/doc-consistency.js && node --test tests/api.test.js && node --test tests/cli.test.js && node tests/cli-e2e.js",
+    "test:api": "node --test tests/api.test.js",
+    "test:cli": "node --test tests/cli.test.js",
+    "test:e2e": "node tests/cli-e2e.js",
+    "audit": "npm audit --audit-level=high",
+    "ci": "node scripts/check.js && npm test"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^1.0.6",
+    "bcryptjs": "^3.0.3",
+    "better-sqlite3": "^13.0.2",
+    "commander": "^11.0.0",
+    "dotenv": "^16.3.1",
+    "express": "^4.18.2",
+    "express-rate-limit": "^8.6.1",
+    "fflate": "^0.8.3",
+    "helmet": "^8.3.0",
+    "jsonwebtoken": "^9.0.3",
+    "nanoid": "^3.3.18",
+    "qrcode": "^1.5.4"
+  },
+  "devDependencies": {
+    "lucide-static": "^1.31.0",
+    "playwright": "^1.62.1"
+  }
+}
