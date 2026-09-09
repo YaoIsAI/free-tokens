@@ -1,9 +1,9 @@
 # free-tokens
 
 <p align="center">
-  <a href="https://free-tokens.org"><img src="./public/screenshot.png" width="720" alt="free-tokens Token公益站 - 首页实拍（聚合 OpenAI / Anthropic / Gemini / DeepSeek 等）"></a>
+  <a href="https://free-tokens.org"><img src="./public/screenshot.png" width="720" alt="free-tokens 首页实拍"></a>
   <br>
-  <em>https://free-tokens.org · https://freeapis.top — 欢迎中转站广告合作，推荐更合适的内容而非硬广</em>
+  <em>https://free-tokens.org · https://freeapis.top — 一条 <code>npm start</code> 跑起来的完整站点</em>
 </p>
 
 <p align="center">
@@ -15,25 +15,20 @@
   <img src="https://img.shields.io/badge/PRs-welcome-brightgreen?style=flat-square" alt="PRs welcome">
 </p>
 
-> **Token 公益站**
-> 免费大模型 Token 信息聚合公益平台
-> 品牌 **free-tokens** · 生产环境 https://free-tokens.org 和 https://freeapis.top
-> 核心口号：**Token 就是力量**。开源精神 / Copyleft（免费 + 自由）
-> 纯信息聚合，不卖 Key，不做中转，不搞会员，不转售牟利
+> **一句话**：把各家的免费大模型 Token 聚到一处；本地 `npm start` 后，你就拥有与上图一致的完整体验：聚合浏览、搜索、发布、积分流动、AI 工具导航、掺水检测 —— 零外部依赖、SQLite 单文件、开箱即用。
 
 ## 站点预览
 
 <p align="center">
-  <img src="https://free-tokens.org/og-image.png" width="720" alt="free-tokens Token公益站 - 免费大模型 Token 聚合导航">
+  <img src="./public/screenshot.png" width="720" alt="free-tokens 首页实拍 - 聚合 OpenAI / Anthropic / Gemini / DeepSeek 等">
   <br>
-  <em>https://free-tokens.org · https://freeapis.top（双域名同时可访问）</em>
+  <em>本地 <code>npm install && npm start</code> 打开 <a href="http://localhost:3000">http://localhost:3000</a> 即见上图所有能力</em>
 </p>
 
-> **欢迎中转站广告合作**：站内 `/cooperate` 自助提交，单槽位单活，创作者收益 0% 抽成。我们推荐更合适的内容，而非硬广。演示如上（聚合 OpenAI / Anthropic / Gemini / DeepSeek 等，一键直达）
+> **你将得到**：实时聚合 + 搜索 + 发布 Token + 积分流水 + 97 款 AI 工具直达 + 单模型 5 维掺水检测 + AI Agent CLI —— 一台普通电脑（Node 18+），几分钟内就有上图一样的完整站点。
 
 ## 目录
 
-- [在线体验](#在线体验)
 - [特性](#特性)
 - [快速开始](#快速开始)
 - [CLI 一键接入](#cli-一键接入)
@@ -43,31 +38,23 @@
 - [项目结构](#项目结构)
 - [技术栈](#技术栈)
 - [测试](#测试)
-- [部署](#部署)
+- [本地预览](#本地预览)
 - [文档导航](#文档导航)
 - [宣传物料](#宣传物料)
 - [贡献指南](#贡献指南)
 - [开源精神](#开源精神)
 
-## 在线体验
-
-| 入口 | 地址 | 说明 |
-|------|------|------|
-| 主站 | **https://free-tokens.org** | SEO 主域，canonical / sitemap 统一指向 |
-| 备用 | **https://freeapis.top** | 同一应用，海报/二维码跟随当前域 |
-| CLI 下载 | `https://freeapis.top/download/freeapis-cli-0.23.0.tgz` | `npm install -g` 全自包含 |
-
 ## 特性
 
-- **每条都实测** — 发布带 Token 时对 `base_url` 做真实有效性探测（OpenAI/Anthropic 双兼容自动识别），不通过拒绝；发布即上线
-- **失效自动清理** — 定时巡检（默认 6h，`SWEEP_INTERVAL_HOURS`）+ 每日 00:00，明确失效（401/403/404/503/连接失败）自动下线，429 限流视为有效
+- **每条都实测** — 发布时对 `base_url` 做真实探测（OpenAI/Anthropic 双兼容自动识别），不通过拒绝；发布即上线
+- **失效自动清理** — 定时巡检（默认 6h）+ 每日 00:00，明确失效自动下线，429 限流视为有效
 - **众创** — 人人可发布（Token 免审即公开），AI 教程走版主审核；`发布即得积分`
-- **积分闭环** — `POINTS.md` / `/points` 详述：注册 +5，看卡 1 分/张按卡去重，`recent` 每日 5 次免费后 1 分/条，签到/打赏/邀请/Skill 交易均入账
-- **AI Agent 原生** — 全局 `freeapis-cli` 支持 `--json`、`TOKEN_API` 自托管，`AGENT.md` 即接管手册
-- **社区** — 贡献榜 / 动态流（含打赏事件）/ 个人主页 `/user/:id` / Token 打赏（1 分流动）/ 详情评论 / 留言墙 / 公告 + 周报 / 头像上传 / 邀请码（微信群领取）
+- **积分闭环** — 注册 +5，看卡 1 分/张按卡去重，`recent` 每日 5 次免费后 1 分/条，签到/打赏/邀请/Skill 交易均入账，详见 `/points`
+- **AI Agent 原生** — 全局 `freeapis-cli` 支持 `--json`、`TOKEN_API` 自托管
+- **社区** — 贡献榜 / 动态流（含打赏）/ 个人主页 / 打赏流动 / 评论 / 留言墙 / 公告 + 周报 / 头像 / 邀请码
 - **AI 工具导航 `/tools`** — 97 款主流 AI 官网直达，分类吸顶，站内有 Token 的带“免费用”角标
-- **掺水检测 `/verify`** — 输入任意 Base URL + Key 自动识别协议与模型，单模型 5 维电池 + AI 判官语义复核只升不降
-- **分享卡片** — `lib/og-card.js` + `@napi-rs/canvas` 动态生成 `1200×630` OG 与 `1080×1440 3:4` 高清海报，按域渲染
+- **掺水检测 `/verify`** — 输入任意 Base URL + Key 自动识别协议与模型，5 维电池 + AI 判官只升不降
+- **分享卡片** — 动态生成 `1200×630` OG 与 `1080×1440` 海报，按域渲染
 - **Skill 广场 `/skills`** — 社区 Skill 发布/审核/版本化 / 0% 抽成交易
 - **安全** — Helmet/CSP/nonce、SSRF 内网拦截、限流、邀请码一码一用、登录锁定、Token 去重索引
 
@@ -83,6 +70,8 @@ npm start            # http://localhost:3000
 node cli.js add --name "xxx" --url "https://xxx" --provider "xxx" --category "对话模型" \
   --token "sk-xxx" --token-type "OpenAI" --tags "GPT-4o,免费"
 ```
+
+> 上手 30 秒：本仓库克隆后两行命令即得上图完整站点，无需任何外部服务。
 
 ## CLI 一键接入
 
@@ -141,14 +130,21 @@ freeapis-cli recent -n 5                   # 每日免费 5 次
 ├── public/                # 前端（app.js / dash.js / styles.css / upload.js / md.js / checkin.js / sponsor.js）
 ├── data/ai-tools.js       # 工具导航策展（97 款）
 ├── scripts/               # build-cli-package / check
-├── 宣传物料/              # 公众号长文 + 7 海报×2 尺寸
 ├── tests/                 # doc-consistency / api / cli / cli-e2e / playwright-*
 └── .github/workflows/ci.yml
 ```
 
 ## 技术栈
 
-Node.js + Express · SQLite (`better-sqlite3`, WAL) · JWT (`bcryptjs`) · `helmet`/`rate-limit` · 纯原生前端（`Lucide` + 布局工厂）· `commander` CLI · `@napi-rs/canvas` + `qrcode`
+| 层 | 选型 | 说明 |
+|----|------|------|
+| 运行时 | Node.js 18+ · Express 4 | 单进程，`pm2` 友好 |
+| 数据 | SQLite `better-sqlite3` · WAL | 单文件，`data/*.db` 本地自建 |
+| 认证 | JWT `jsonwebtoken` · `bcryptjs` | `HS256`，登录锁定 5 次/15 分钟 |
+| 安全 | `helmet` · `express-rate-limit` · `csp/nonce` · SSRF 内网拦截 | 邀请码一码一用，Token 去重索引 |
+| 前端 | 原生 JS + `Lucide` sprite 内联 + 布局工厂 | 无框架，SSR 直出 |
+| CLI | `commander` 全自包含 `tgz` | `TOKEN_API` 自托管，`--json` 供 Agent |
+| 图像 | `@napi-rs/canvas` + `qrcode` | `og-card.js` 动态 OG/海报，按域渲染 |
 
 ## 测试
 
@@ -158,9 +154,15 @@ npm test          # 文档守护(11) + API(312) + CLI(11) + CLI e2e(37) = 371 �
 npm run ci        # check + test
 ```
 
-## 部署
+## 本地预览
 
-纯站代码 `cp .env.example .env && npm start` 即跑，生产由维护者直连部署（`Gitea` 全量仓），贡献者无需关心服务器。
+```bash
+cp .env.example .env   # 首次必填 JWT_SECRET=openssl rand -hex 32
+npm install && npm start
+# 打开 http://localhost:3000，首页、工具、检测、教程、Skill、积分、CLI 指南均与上图一致
+```
+
+> 无需外部数据库与密钥，`data/app.db` 首次启动自动建库，`public/uploads` 本地自建。
 
 ## 文档导航
 
