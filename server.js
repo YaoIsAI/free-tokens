@@ -14,6 +14,8 @@ const dns = require('dns').promises;
 const getDb = require('./lib/db');
 const auth = require('./lib/auth');
 const points = require('./lib/points');
+const mailer = require('./lib/mailer');
+const emailAuth = require('./lib/email-auth');
 const layout = require('./lib/layout');
 const og = require('./lib/og-card');
 const md = require('./public/md.js');
@@ -105,6 +107,9 @@ const testTokenLimiter = rateLimit({ windowMs: 60_000, max: testTokenLimiterMax,
 // 无验证码自助找回的安全兜底：10 分钟内每个 IP 最多 5 次（RECOVERY_RATE_LIMIT_MAX 可覆盖）
 const recoveryLimiterMax = parseInt(process.env.RECOVERY_RATE_LIMIT_MAX, 10) || 5;
 const recoveryLimiter = rateLimit({ windowMs: 600_000, max: recoveryLimiterMax, standardHeaders: true, legacyHeaders: false, message: { error: '找回尝试过于频繁，请稍后再试' } });
+// 邮箱发送链接/验证码：单 IP 10 分钟 3 次（防垃圾触发邮件 + 限流）
+const writeSlowLimiterMax = parseInt(process.env.EMAIL_SEND_RATE_LIMIT_MAX, 10) || 3;
+const writeSlowLimiter = rateLimit({ windowMs: 600_000, max: writeSlowLimiterMax, standardHeaders: true, legacyHeaders: false, message: { error: '邮件请求过于频繁，请稍后再试' } });
 
 // ===== SSE 实时推送（新 Token 上线即时通知首页在线访客） =====
 // 必须注册在 compression 之前：压缩会缓冲 SSE 流，导致推送延迟/卡死。apiLimiter 仍会作用（每连接计 1 次）。
@@ -2376,6 +2381,11 @@ freeapis-cli --help</pre>
     keywords: 'freeapis-cli,CLI工具,命令行,AI Agent,自动化,API key管理,大模型token'
   }));
 });
+app.get('/reset', noCacheHtml, (req, res) => {
+  const content = `<main class="main"><div class="guide" style="text-align:center;padding:48px 20px"><h1>重置密码</h1><p style="color:var(--text-muted)">正在打开重置表单…</p><p><a href="/?token=${encodeURIComponent(String(req.query.token || ''))}" class="btn btn--primary">去重置</a></p></div></main>
+  <script>location.replace('/?token=' + encodeURIComponent(new URLSearchParams(location.search).get('token')||''));</script>`;
+  res.send(layout.page({ title: '重置密码', content, cssHash, jsHash, url: canonicalUrl(req), nonce: res.locals.cspNonce, noindex: true }));
+});
 app.get('/points', staticPageCache, (req, res) => {
   const content = `
   <main class="main">
@@ -2589,6 +2599,141 @@ app.put('/api/auth/profile', auth.authMiddleware, (req, res) => {
   db.prepare('UPDATE users SET ' + setSql + ' WHERE id = ?').run(...Object.values(updates), req.user.id);
   const user = db.prepare('SELECT id, username, nickname, email, phone, role, points, avatar, created_at FROM users WHERE id = ?').get(req.user.id);
   res.json({ user });
+});
+
+// ============================================================
+// 邮箱验证码（绑定 / 重置密码）— 后台「邮箱设置」开启后启用
+// ============================================================
+function getResetLinkOrigin(req) {
+  // 重置链接默认走主域（SEO 收敛）：用户在主域进入重置页，不暴露请求域名
+  try {
+    const u = new URL('/reset', process.env.PRIMARY_ORIGIN || 'https://free-tokens.org');
+    return u.origin;
+  } catch (_) {
+    return 'https://free-tokens.org';
+  }
+}
+
+// 发送绑定验证码（已登录）：当前用户绑定 / 改绑邮箱
+app.post('/api/auth/email/send-bind', auth.authMiddleware, writeLimiter, async (req, res) => {
+  const db = getDb();
+  const user = db.prepare('SELECT id, email FROM users WHERE id = ?').get(req.user.id);
+  if (!user) return res.status(401).json({ error: '未登录' });
+  const email = String(req.body && req.body.email || user.email || '').trim().toLowerCase();
+  if (!email) return res.status(400).json({ error: '请提供邮箱' });
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return res.status(400).json({ error: '邮箱格式无效' });
+  // 邮箱唯一（不区分大小写），排除自己
+  const clash = db.prepare('SELECT id FROM users WHERE email = ? COLLATE NOCASE AND id != ?').get(email, req.user.id);
+  if (clash) return res.status(400).json({ error: '该邮箱已被使用' });
+  const r = await emailAuth.sendCode({ email, userId: req.user.id, purpose: 'bind', ip: req.ip });
+  res.json(r);
+});
+
+// 校验绑定验证码：写入 email + email_verified_at
+app.post('/api/auth/email/verify-bind', auth.authMiddleware, writeLimiter, async (req, res) => {
+  const email = String(req.body && req.body.email || '').trim().toLowerCase();
+  const code = String(req.body && req.body.code || '').trim();
+  if (!email || !code) return res.status(400).json({ error: '邮箱与验证码必填' });
+  const r = await emailAuth.verifyCode({ email, code, purpose: 'bind' });
+  if (!r.ok) return res.status(400).json(r);
+  try {
+    const db = getDb();
+    db.prepare("UPDATE users SET email = ?, email_verified_at = datetime('now') WHERE id = ?").run(email, req.user.id);
+    res.json({ ok: true });
+  } catch (e) {
+    res.status(500).json({ error: '保存失败' });
+  }
+});
+
+// 申请密码重置链接：发邮件（不暴露用户是否存在）
+app.post('/api/auth/forgot', writeLimiter, writeSlowLimiter, async (req, res) => {
+  const username = String(req.body && req.body.username || '').trim();
+  const email = String(req.body && req.body.email || '').trim().toLowerCase();
+  if (!username || !email) return res.status(400).json({ error: '用户名与邮箱必填' });
+  // 拼装一次完整链接（绑定 PRIMA）
+  const origin = getResetLinkOrigin(req);
+  const buildLink = (token) => `${origin}/reset?token=${token}`;
+  // 临时 monkey patch mailer 模块的 buildResetLink
+  const original = emailAuth.buildResetLink;
+  emailAuth.buildResetLink = (token) => `${origin}/reset?token=${token}`;
+  try {
+    const r = await emailAuth.startPasswordReset({ username, email, ip: req.ip, ua: req.headers['user-agent'] || '' });
+    res.json(r);
+  } finally {
+    emailAuth.buildResetLink = original;
+  }
+});
+
+// 消费重置链接 + 新密码
+app.post('/api/auth/reset', writeLimiter, writeSlowLimiter, (req, res) => {
+  const token = String(req.body && req.body.token || '').trim();
+  const newPassword = String(req.body && req.body.password || '');
+  const r = emailAuth.consumeResetToken({ token, newPassword, ip: req.ip });
+  if (!r.ok) return res.status(400).json(r);
+  res.json({ ok: true });
+});
+
+// ============================================================
+// 后台管理 — 邮箱服务配置（管理员/版主：测试发送 / 启停 / 修改 SMTP）
+// ============================================================
+app.get('/api/admin/email/settings', auth.authMiddleware, auth.moderatorMiddleware, adminStatsLimiter, (req, res) => {
+  res.json(mailer.maskConfig());
+});
+
+app.put('/api/admin/email/settings', auth.authMiddleware, auth.moderatorMiddleware, writeLimiter, (req, res) => {
+  const b = req.body || {};
+  const cfg = {
+    host: String(b.host || '').trim().slice(0, 200),
+    port: parseInt(b.port, 10) || 465,
+    secure: b.secure !== false,
+    user: String(b.user || '').trim().slice(0, 200),
+    pass: b.pass ? String(b.pass) : null,
+    fromAddr: String(b.fromAddr || '').trim().slice(0, 200),
+    enabled: !!b.enabled,
+    updatedBy: req.user.username || req.user.id
+  };
+  if (!cfg.host || !cfg.user || !cfg.fromAddr) return res.status(400).json({ error: 'host/user/fromAddr 必填' });
+  if (!/^[^\s@]+@[^\s@]+$/.test(cfg.fromAddr)) return res.status(400).json({ error: '发件人邮箱格式无效' });
+  // 启停：必须先有完整配置
+  if (cfg.enabled) {
+    const cur = mailer.readConfig();
+    if (!cur.host || !cur.user || !cur.pass) return res.status(400).json({ error: '首次启用必须同时填写 host/user/pass' });
+  }
+  mailer.saveConfig(cfg);
+  mailer.resetTransporter();
+  // 记录 enabled 状态（脱敏后回写）
+  try {
+    const db = getDb();
+    db.prepare("UPDATE email_settings SET enabled = ?, last_test_msg = CASE WHEN ? != enabled THEN (CASE WHEN ?=1 THEN '已启用' ELSE '已停用' END) ELSE last_test_msg END WHERE id='default'").run(cfg.enabled ? 1 : 0, 0, cfg.enabled ? 1 : 0);
+  } catch (_) {}
+  res.json({ ok: true, config: mailer.maskConfig() });
+});
+
+// 测试发送（指定收件人）
+app.post('/api/admin/email/test', auth.authMiddleware, auth.moderatorMiddleware, writeLimiter, async (req, res) => {
+  const to = String(req.body && req.body.to || '').trim().toLowerCase();
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(to)) return res.status(400).json({ error: '收件人邮箱格式无效' });
+  const t = mailer.getTransporter();
+  if (!t) return res.status(400).json({ ok: false, error: '请先启用并填写 SMTP 配置' });
+  const subject = '【free-tokens】邮件服务测试';
+  const html = '<div style="font-family:sans-serif;padding:24px"><h2>这是一封测试邮件</h2><p>收到这封邮件说明 free-tokens 的 SMTP 配置已生效。</p><p style="color:#94a3b8;font-size:12px">于 ' + new Date().toLocaleString('zh-CN') + ' 发送</p></div>';
+  const r = await mailer.sendMail({ to, subject, html, userId: req.user.id, purpose: 'change' });
+  try {
+    const db = getDb();
+    db.prepare("UPDATE email_settings SET last_test_at = datetime('now'), last_test_msg = ? WHERE id = 'default'").run(r.ok ? '测试发送成功' : (r.error || '失败'));
+  } catch (_) {}
+  res.json(r);
+});
+
+// 邮件发送流水（最近 100 条）
+app.get('/api/admin/email/logs', auth.authMiddleware, auth.moderatorMiddleware, adminStatsLimiter, (req, res) => {
+  try {
+    const db = getDb();
+    const rows = db.prepare('SELECT id, user_id, email, purpose, subject, ok, err, created_at FROM email_logs ORDER BY id DESC LIMIT 100').all();
+    res.json({ logs: rows });
+  } catch (e) {
+    res.status(500).json({ error: '查询失败' });
+  }
 });
 
 // ============================================================

@@ -245,14 +245,27 @@
       '<p class="auth-switch">已有账号？<a href="#" id="switchToLogin">去登录</a></p>';
   }
   function renderRecover() {
-    return '<h2 class="modal__title">' + svgIcon('key-round') + ' 找回密码</h2>' +
-      '<p class="auth-hint">填写用户名和你注册时填的邮箱或手机号，即可重设密码（无需验证码）。未填过联系方式的账号请联系管理员重置。</p>' +
-      '<div class="form-group"><label>用户名</label><input class="input" id="recUser" placeholder="输入用户名" autocomplete="username"></div>' +
-      '<div class="form-group"><label>邮箱</label><input class="input" id="recEmail" type="email" placeholder="注册时填的邮箱（二选一）" autocomplete="email"></div>' +
-      '<div class="form-group"><label>手机号</label><input class="input" id="recPhone" placeholder="注册时填的手机号（二选一）" autocomplete="tel"></div>' +
-      '<div class="form-group"><label>新密码</label><input class="input" type="password" id="recPass" placeholder="至少8位，含字母和数字" autocomplete="new-password"></div>' +
-      '<div class="form-group"><label>确认新密码</label><input class="input" type="password" id="recPass2" placeholder="再次输入新密码" autocomplete="new-password"></div>' +
-      '<button class="btn btn--primary btn--full" id="recoverBtn">重置密码</button>' +
+    // 若 URL 带 token → 直接展示重置表单，否则展示“发邮箱链接”表单
+    var qs = new URLSearchParams(location.search);
+    var rt = qs.get('token');
+    if (rt) {
+      return '<h2 class="modal__title">' + svgIcon('key-round') + ' 重置密码</h2>' +
+        '<p class="auth-hint">链接 30 分钟有效，单次使用。</p>' +
+        '<div class="form-group"><label>新密码</label><input class="input" type="password" id="resetPass" placeholder="至少8位，含字母和数字" autocomplete="new-password"></div>' +
+        '<div class="form-group"><label>确认新密码</label><input class="input" type="password" id="resetPass2" placeholder="再次输入" autocomplete="new-password"></div>' +
+        '<button class="btn btn--primary btn--full" id="doResetBtn" data-token="' + esc(rt) + '">确认重置</button>' +
+        '<p class="auth-switch"><a href="#" id="switchToLogin">去登录</a></p>';
+    }
+    return '<h2 class="modal__title">' + svgIcon('mail') + ' 邮箱找回</h2>' +
+      '<p class="auth-hint">输入用户名与注册邮箱，系统将向该邮箱发送 30 分钟有效的重置链接。</p>' +
+      '<div class="form-group"><label>用户名</label><input class="input" id="forgotUser" placeholder="输入用户名" autocomplete="username"></div>' +
+      '<div class="form-group"><label>注册邮箱</label><input class="input" id="forgotEmail" type="email" placeholder="注册时绑定的邮箱" autocomplete="email"></div>' +
+      '<button class="btn btn--primary btn--full" id="forgotBtn">发送重置邮件</button>' +
+      '<p class="auth-hint" style="margin-top:10px">没绑邮箱？先用手机号找回：</p>' +
+      '<div class="form-group"><label>手机号</label><input class="input" id="recPhone" placeholder="注册时填的手机号" autocomplete="tel"></div>' +
+      '<div class="form-group"><label>新密码（备用通道）</label><input class="input" type="password" id="recPass" placeholder="至少8位，含字母和数字"></div>' +
+      '<div class="form-group"><label>确认</label><input class="input" type="password" id="recPass2" placeholder="再次输入"></div>' +
+      '<button class="btn btn--ghost btn--full" id="recoverBtn">用手机号直接重置</button>' +
       '<p class="auth-switch">想起来了？<a href="#" id="switchToLogin">去登录</a></p>';
   }
 
@@ -299,14 +312,45 @@
           window.dispatchEvent(new CustomEvent('auth-changed'));
         } catch (err) { showToast('注册失败'); }
       }
+      // 邮箱发送重置链接
+      if (e.target.id === 'forgotBtn') {
+        var fUser = document.getElementById('forgotUser')?.value.trim();
+        var fEmail = document.getElementById('forgotEmail')?.value.trim();
+        if (!fUser || !fEmail) { showToast('请填写用户名与邮箱'); return; }
+        e.target.disabled = true; e.target.textContent = '发送中...';
+        try {
+          var fr = await api('POST', '/auth/forgot', { username: fUser, email: fEmail });
+          var fd = await fr.json();
+          showToast(fd.error ? fd.error : (fd.message || '已发送，请查收邮箱'));
+        } catch (err) { showToast('发送失败'); }
+        e.target.disabled = false; e.target.textContent = '发送重置邮件';
+        return;
+      }
+      if (e.target.id === 'doResetBtn') {
+        var tok = e.target.getAttribute('data-token');
+        var p1 = document.getElementById('resetPass')?.value;
+        var p2 = document.getElementById('resetPass2')?.value;
+        if (!p1 || p1.length < 8) { showToast('新密码至少8个字符'); return; }
+        if (!/[A-Za-z]/.test(p1) || !/\d/.test(p1)) { showToast('新密码需同时包含字母和数字'); return; }
+        if (p1 !== p2) { showToast('两次输入不一致'); return; }
+        try {
+          var rr = await api('POST', '/auth/reset', { token: tok, password: p1 });
+          var rd = await rr.json();
+          if (!rr.ok) { showToast(rd.error || '重置失败'); return; }
+          showToast('重置成功，请用新密码登录'); history.replaceState(null, '', location.pathname); openAuth('login');
+        } catch (err) { showToast('重置失败'); }
+        return;
+      }
       if (e.target.id === 'recoverBtn') {
-        var rUser = document.getElementById('recUser')?.value.trim();
-        var rEmail = document.getElementById('recEmail')?.value.trim();
+        var rUser = document.getElementById('recPhone')?.value.trim() ? document.getElementById('recUser')?.value.trim() || document.getElementById('forgotUser')?.value.trim() : document.getElementById('recUser')?.value.trim() || document.getElementById('forgotUser')?.value.trim();
+        // 兼容旧布局：优先取 recUser，否则 forgotUser
+        rUser = rUser || document.getElementById('recUser')?.value.trim() || document.getElementById('forgotUser')?.value.trim();
+        var rEmail = '';
         var rPhone = document.getElementById('recPhone')?.value.trim();
         var rPass = document.getElementById('recPass')?.value;
         var rPass2 = document.getElementById('recPass2')?.value;
         if (!rUser) { showToast('请填写用户名'); return; }
-        if (!rEmail && !rPhone) { showToast('请填写注册时使用的邮箱或手机号'); return; }
+        if (!rPhone) { showToast('请填写手机号（邮箱请用上方发送链接）'); return; }
         if (!rPass || rPass.length < 8) { showToast('新密码至少8个字符'); return; }
         if (!/[A-Za-z]/.test(rPass) || !/\d/.test(rPass)) { showToast('新密码需同时包含字母和数字'); return; }
         if (rPass !== rPass2) { showToast('两次输入的密码不一致'); return; }
@@ -319,6 +363,17 @@
       }
     });
   }
+
+  // 邮箱重置链接直达：/reset?token=xxx 自动弹重置表单
+  (function(){
+    try {
+      var qs = new URLSearchParams(location.search);
+      var t = qs.get('token');
+      if (location.pathname === '/reset' && t) {
+        setTimeout(function(){ openAuth('recover'); }, 400);
+      }
+    } catch(e){}
+  })();
 
   // ============================================================
   // Publish Modal

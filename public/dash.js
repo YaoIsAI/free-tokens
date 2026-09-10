@@ -325,6 +325,7 @@
       if (isStaff) h += '<button class="dash__tab' + (currentTab === 'feedback' ? ' is-active' : '') + '" data-tab="feedback">' + ic('inbox') + '反馈<span class="dash__badge" data-badge="feedback" style="display:none"></span></button>';
       if (isStaff) h += '<button class="dash__tab' + (currentTab === 'visits' ? ' is-active' : '') + '" data-tab="visits">' + ic('globe') + '访客</button>';
       if (isStaff) h += '<button class="dash__tab' + (currentTab === 'server' ? ' is-active' : '') + '" data-tab="server">' + ic('server') + '服务器</button>';
+      if (isStaff) h += '<button class="dash__tab' + (currentTab === 'email' ? ' is-active' : '') + '" data-tab="email">' + ic('mail') + '邮箱<span class="dash__badge" data-badge="email" style="display:none"></span></button>';
       if (isAdmin) h += '<button class="dash__tab' + (currentTab === 'ai-judge' ? ' is-active' : '') + '" data-tab="ai-judge">' + ic('bot') + 'AI 判官</button>';
       return h;
     }
@@ -408,6 +409,7 @@
       else if (currentTab === 'feedback') loadFeedback(viewEl);
       else if (currentTab === 'visits') loadVisits(viewEl);
       else if (currentTab === 'server') loadServer(viewEl);
+      else if (currentTab === 'email') loadEmail(viewEl);
       else if (currentTab === 'ai-judge') loadAiJudge(viewEl);
       else loadDashboard(viewEl);
       refreshBadges();
@@ -481,7 +483,7 @@
         html += '<div class="avatar-edit__hint">点击头像 / 拖拽图片 / Ctrl+V 粘贴即换，PNG/JPG/WebP/GIF ≤3MB</div>';
         html += '</div></div>';
         html += '<div class="form-group"><label>昵称</label><input class="input" id="nicknameInput" maxlength="30" placeholder="留空则显示账号，昵称全站唯一" value="' + T.esc(profile.nickname || '') + '"><div class="nickname-hint" id="nicknameHint"></div></div>';
-        html += '<div class="form-group"><label>邮箱</label><input class="input" id="profileEmail" type="email" placeholder="用于找回密码，选填" value="' + T.esc(profile.email || '') + '"></div>';
+        html += '<div class="form-group"><label>邮箱 ' + (profile.email_verified_at ? '<span style="color:var(--green);font-size:11px">✓ 已验证</span>' : '<span style="color:var(--text-muted);font-size:11px">未验证</span>') + '</label><div style="display:flex;gap:6px"><input class="input" id="profileEmail" type="email" placeholder="用于找回密码，选填" value="' + T.esc(profile.email || '') + '" style="flex:1"><button class="btn btn--ghost btn--sm" id="sendEmailCodeBtn" style="white-space:nowrap">' + ic('mail') + ' 发验证码</button></div><div style="display:flex;gap:6px;margin-top:6px"><input class="input" id="emailCodeInput" placeholder="6 位验证码" maxlength="6" style="flex:1"><button class="btn btn--primary btn--sm" id="verifyEmailBtn">' + ic('check') + ' 验证</button></div></div>';
         html += '<div class="form-group"><label>手机号</label><input class="input" id="profilePhone" placeholder="用于找回密码，选填" value="' + T.esc(profile.phone || '') + '"></div>';
         html += '<div class="dash__profile-edit-actions">';
         html += '<button class="btn btn--primary btn--sm" id="nicknameSave">保存</button>';
@@ -755,6 +757,31 @@
             T.showToast('资料已更新');
             loadDashboard(target);
           } catch (e) { T.showToast('保存失败'); }
+        });
+        var sendCodeBtn = document.getElementById('sendEmailCodeBtn');
+        if (sendCodeBtn) sendCodeBtn.addEventListener('click', async function(){
+          var email = (document.getElementById('profileEmail').value || '').trim();
+          if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { T.showToast('请先填写有效邮箱'); return; }
+          this.disabled = true; this.textContent = '发送中...';
+          try {
+            var r = await T.api('POST', '/auth/email/send-bind', { email: email });
+            var d = await r.json();
+            T.showToast(r.ok ? '验证码已发送，请查收' : (d.error || '发送失败'));
+          } catch(e){ T.showToast('发送失败'); }
+          this.disabled = false; this.innerHTML = ic('mail') + ' 发验证码';
+        });
+        var verifyBtn = document.getElementById('verifyEmailBtn');
+        if (verifyBtn) verifyBtn.addEventListener('click', async function(){
+          var email = (document.getElementById('profileEmail').value || '').trim();
+          var code = (document.getElementById('emailCodeInput').value || '').trim();
+          if (!email || !code) { T.showToast('请填写邮箱与验证码'); return; }
+          try {
+            var r = await T.api('POST', '/auth/email/verify-bind', { email: email, code: code });
+            var d = await r.json();
+            if (!r.ok) { T.showToast(d.error || '验证失败'); return; }
+            T.showToast('邮箱验证成功');
+            loadDashboard(target);
+          } catch(e){ T.showToast('验证失败'); }
         });
         var nickCancel = document.getElementById('nicknameCancel');
         if (nickCancel) nickCancel.addEventListener('click', function() { loadDashboard(target); });
@@ -1896,6 +1923,77 @@
             btn.disabled=false;
           });
         });
+      } catch (e) {
+        target.innerHTML = '<div class="dash-empty"><div class="dash-empty__icon">' + ic('alert-triangle') + '</div><p class="dash-empty__text">' + T.esc(e.message) + '</p></div>';
+      }
+    }
+    async function loadEmail(target) {
+      target.innerHTML = '<div class="dash-empty"><div class="spinner" style="margin:0 auto 16px"></div><p class="dash-empty__text">加载中...</p></div>';
+      try {
+        var res = await T.api('GET', '/admin/email/settings');
+        if (!res.ok) { var ed = await res.json(); target.innerHTML = '<div class="dash-empty"><div class="dash-empty__icon">' + ic('lock') + '</div><p class="dash-empty__text">' + T.esc(ed.error || '无权限') + '</p></div>'; return; }
+        var cfg = await res.json();
+        var logsRes = await T.api('GET', '/admin/email/logs');
+        var logs = logsRes.ok ? (await logsRes.json()).logs || [] : [];
+        var html = '<div class="dash__section"><div class="dash__section-head"><span class="dash__section-title">' + ic('mail') + ' 邮箱服务</span><span class="item-status ' + (cfg.enabled ? 'item-status--verified' : 'item-status--pending') + '">' + (cfg.enabled ? '已启用' : '未启用') + '</span></div>';
+        html += '<div class="guide-card" style="padding:16px;display:flex;flex-direction:column;gap:12px">';
+        html += '<p class="invite-tip">用于邮箱绑定验证码与密码重置链接；启用后前台“邮箱验证/忘记密码”自动可用，停用则静默关闭。</p>';
+        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
+        html += '<label class="ai-judge-label">SMTP Host<input class="input" id="emHost" placeholder="如 smtp.resend.com" value="' + T.esc(cfg.host || '') + '"></label>';
+        html += '<label class="ai-judge-label">端口<input class="input" id="emPort" type="number" placeholder="465" value="' + T.esc(String(cfg.port || 465)) + '"></label>';
+        html += '<label class="ai-judge-label">发件人<input class="input" id="emFrom" placeholder="noreply@free-tokens.org" value="' + T.esc(cfg.fromAddr || '') + '"></label>';
+        html += '<label class="ai-judge-label">账号<input class="input" id="emUser" placeholder="SMTP 用户名" value="' + T.esc(cfg.user || '') + '"></label>';
+        html += '<label class="ai-judge-label">密码<input class="input" id="emPass" type="password" placeholder="' + (cfg.passSet ? '已设置（留空不改）' : 'SMTP 密码 / API Key') + '"></label>';
+        html += '<label class="ai-judge-label" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="emSecure" ' + (cfg.secure !== false ? 'checked' : '') + '> SSL/TLS</label>';
+        html += '<label class="ai-judge-label" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="emEnabled" ' + (cfg.enabled ? 'checked' : '') + '> 启用邮件服务</label>';
+        html += '</div>';
+        html += '<button class="btn btn--primary" id="emSave" style="width:100%;justify-content:center">' + ic('check') + ' 保存并启用/更新</button>';
+        if (cfg.last_test_at) html += '<p style="font-size:11px;color:var(--text-muted);margin:0">上次测试：' + T.esc(cfg.last_test_at.slice(0,19).replace('T',' ')) + ' · ' + T.esc(cfg.last_test_msg || '') + '</p>';
+        html += '</div></div>';
+        // 测试发送
+        html += '<div class="ai-judge-card" style="margin:0 0 18px"><div class="ai-judge-card__head">' + ic('send') + ' 测试发送</div>';
+        html += '<div style="display:flex;gap:8px"><input class="input" id="emTestTo" placeholder="收件人邮箱" style="flex:1"><button class="btn btn--primary btn--sm" id="emTestBtn">' + ic('send') + ' 发送测试</button></div></div>';
+        // 流水
+        html += '<div class="ai-judge-card" style="margin:0 0 18px"><div class="ai-judge-card__head">' + ic('clock') + ' 最近发送流水（100 条）</div>';
+        if (!logs.length) html += '<div class="dash-empty"><p class="dash-empty__text">暂无记录</p></div>';
+        else {
+          html += '<div style="overflow:auto"><table style="width:100%;min-width:560px;border-collapse:collapse;font-size:12px"><thead><tr style="background:var(--surface-3)"><th style="padding:6px 8px">时间</th><th style="padding:6px 8px">收件人</th><th style="padding:6px 8px">主题</th><th style="padding:6px 8px">结果</th></tr></thead><tbody>';
+          logs.forEach(function(l){
+            html += '<tr><td style="padding:6px 8px;white-space:nowrap">' + T.esc((l.created_at||'').slice(5,16).replace('T',' ')) + '</td><td style="padding:6px 8px">' + T.esc(l.email) + '</td><td style="padding:6px 8px">' + T.esc(l.subject) + '</td><td style="padding:6px 8px">' + (l.ok ? '<span style="color:var(--green)">成功</span>' : '<span style="color:var(--red)" title="' + T.esc(l.err||'') + '">失败</span>') + '</td></tr>';
+          });
+          html += '</tbody></table></div>';
+        }
+        html += '</div>';
+        html += '</div>';
+        target.innerHTML = html;
+        document.getElementById('emSave').onclick = async function(){
+          var b = {
+            host: document.getElementById('emHost').value.trim(),
+            port: parseInt(document.getElementById('emPort').value,10) || 465,
+            secure: document.getElementById('emSecure').checked,
+            user: document.getElementById('emUser').value.trim(),
+            pass: document.getElementById('emPass').value,
+            fromAddr: document.getElementById('emFrom').value.trim(),
+            enabled: document.getElementById('emEnabled').checked
+          };
+          if (!b.host || !b.user || !b.fromAddr) { T.showToast('host/user/from 必填'); return; }
+          var r = await T.api('PUT', '/admin/email/settings', b);
+          var d = await r.json();
+          if (!r.ok) { T.showToast(d.error||'保存失败'); return; }
+          T.showToast('已保存'); loadEmail(target);
+        };
+        document.getElementById('emTestBtn').onclick = async function(){
+          var to = document.getElementById('emTestTo').value.trim();
+          if (!to) { T.showToast('请填写收件人'); return; }
+          var btn = document.getElementById('emTestBtn'); btn.disabled=true; btn.textContent='发送中...';
+          try {
+            var r = await T.api('POST', '/admin/email/test', { to });
+            var d = await r.json();
+            T.showToast(r.ok ? '已发送，请查收' : (d.error||'失败'));
+            if (r.ok) loadEmail(target);
+          } catch(e){ T.showToast('发送失败'); }
+          btn.disabled=false; btn.innerHTML = ic('send') + ' 发送测试';
+        };
       } catch (e) {
         target.innerHTML = '<div class="dash-empty"><div class="dash-empty__icon">' + ic('alert-triangle') + '</div><p class="dash-empty__text">' + T.esc(e.message) + '</p></div>';
       }
