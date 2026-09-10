@@ -2694,10 +2694,14 @@ app.put('/api/admin/email/settings', auth.authMiddleware, auth.moderatorMiddlewa
   };
   if (!cfg.host || !cfg.user || !cfg.fromAddr) return res.status(400).json({ error: 'host/user/fromAddr 必填' });
   if (!/^[^\s@]+@[^\s@]+$/.test(cfg.fromAddr)) return res.status(400).json({ error: '发件人邮箱格式无效' });
-  // 启停：必须先有完整配置
+  // 启停：必须先有完整配置（新填或沿用旧密文）
   if (cfg.enabled) {
     const cur = mailer.readConfig();
-    if (!cur.host || !cur.user || !cur.pass) return res.status(400).json({ error: '首次启用必须同时填写 host/user/pass' });
+    const effHost = cfg.host || cur.host;
+    const effUser = cfg.user || cur.user;
+    const effPass = cfg.pass || cur.pass;
+    const effFrom = cfg.fromAddr || cur.fromAddr;
+    if (!effHost || !effUser || !effPass || !effFrom) return res.status(400).json({ error: '启用需完整：host / user / pass / 发件人' });
   }
   mailer.saveConfig(cfg);
   mailer.resetTransporter();

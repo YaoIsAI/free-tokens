@@ -1936,23 +1936,30 @@
         var logsRes = await T.api('GET', '/admin/email/logs');
         var logs = logsRes.ok ? (await logsRes.json()).logs || [] : [];
         var html = '<div class="dash__section"><div class="dash__section-head"><span class="dash__section-title">' + ic('mail') + ' 邮箱服务</span><span class="item-status ' + (cfg.enabled ? 'item-status--verified' : 'item-status--pending') + '">' + (cfg.enabled ? '已启用' : '未启用') + '</span></div>';
-        html += '<div class="guide-card" style="padding:16px;display:flex;flex-direction:column;gap:12px">';
-        html += '<p class="invite-tip">用于邮箱绑定验证码与密码重置链接；启用后前台“邮箱验证/忘记密码”自动可用，停用则静默关闭。</p>';
-        html += '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">';
-        html += '<label class="ai-judge-label">SMTP Host<input class="input" id="emHost" placeholder="如 smtp.resend.com" value="' + T.esc(cfg.host || '') + '"></label>';
+        html += '<div class="guide-card" style="padding:18px;display:flex;flex-direction:column;gap:14px">';
+        html += '<div style="background:var(--brand-50);border:1px solid var(--brand);border-radius:12px;padding:12px 14px;display:flex;gap:10px;align-items:flex-start">';
+        html += '<span style="color:var(--brand);flex-shrink:0">' + ic('info') + '</span>';
+        html += '<div style="font-size:13px;line-height:1.6;color:var(--text)"><b>先配置，后启用</b>：填好下方 6 项 → <b>保存</b> → 用“测试发送”验连通 → 勾“启用”再保存。启用后前台“邮箱验证/忘记密码”自动生效，停用则静默关闭（不影响已绑邮箱）。</div></div>';
+        html += '<div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:12px">';
+        html += '<label class="ai-judge-label">SMTP Host <span style="font-weight:400;color:var(--text-muted)">（如 smtp.resend.com）</span><input class="input" id="emHost" placeholder="smtp.resend.com" value="' + T.esc(cfg.host || '') + '"></label>';
         html += '<label class="ai-judge-label">端口<input class="input" id="emPort" type="number" placeholder="465" value="' + T.esc(String(cfg.port || 465)) + '"></label>';
-        html += '<label class="ai-judge-label">发件人<input class="input" id="emFrom" placeholder="noreply@free-tokens.org" value="' + T.esc(cfg.fromAddr || '') + '"></label>';
-        html += '<label class="ai-judge-label">账号<input class="input" id="emUser" placeholder="SMTP 用户名" value="' + T.esc(cfg.user || '') + '"></label>';
-        html += '<label class="ai-judge-label">密码<input class="input" id="emPass" type="password" placeholder="' + (cfg.passSet ? '已设置（留空不改）' : 'SMTP 密码 / API Key') + '"></label>';
-        html += '<label class="ai-judge-label" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="emSecure" ' + (cfg.secure !== false ? 'checked' : '') + '> SSL/TLS</label>';
-        html += '<label class="ai-judge-label" style="flex-direction:row;align-items:center;gap:8px"><input type="checkbox" id="emEnabled" ' + (cfg.enabled ? 'checked' : '') + '> 启用邮件服务</label>';
+        html += '<label class="ai-judge-label">发件人 <span style="font-weight:400;color:var(--text-muted)">（与账号一致）</span><input class="input" id="emFrom" placeholder="noreply@free-tokens.org" value="' + T.esc(cfg.fromAddr || '') + '"></label>';
+        html += '<label class="ai-judge-label">账号<input class="input" id="emUser" placeholder="resend / 完整邮箱" value="' + T.esc(cfg.user || '') + '"></label>';
+        html += '<label class="ai-judge-label">密码 / Key<input class="input" id="emPass" type="password" placeholder="' + (cfg.passSet ? '已设置（留空不改）' : 'SMTP 密码') + '"></label>';
+        html += '<label class="ai-judge-label">加密<select class="input" id="emSecure"><option value="1"' + (cfg.secure !== false ? ' selected' : '') + '>SSL/TLS（465）</option><option value="0"' + (cfg.secure === false ? ' selected' : '') + '>STARTTLS（587）</option></select></label>';
         html += '</div>';
-        html += '<button class="btn btn--primary" id="emSave" style="width:100%;justify-content:center">' + ic('check') + ' 保存并启用/更新</button>';
+        html += '<label class="ai-judge-label" style="flex-direction:row;align-items:center;gap:8px;margin-top:2px"><input type="checkbox" id="emEnabled" ' + (cfg.enabled ? 'checked' : '') + '> <b>启用邮件服务</b> <span style="font-weight:400;color:var(--text-muted)">（关闭后前台邮箱功能隐藏）</span></label>';
+        html += '<button class="btn btn--primary" id="emSave" style="width:100%;justify-content:center;padding:12px">' + ic('check') + ' 保存并更新配置</button>';
         if (cfg.last_test_at) html += '<p style="font-size:11px;color:var(--text-muted);margin:0">上次测试：' + T.esc(cfg.last_test_at.slice(0,19).replace('T',' ')) + ' · ' + T.esc(cfg.last_test_msg || '') + '</p>';
+        html += '<details style="background:var(--surface-3);border-radius:10px;padding:10px 12px"><summary style="cursor:pointer;font-weight:600;font-size:13px">配置指引（Resend / 阿里云 / 腾讯 选一）</summary>';
+        html += '<div style="font-size:12.5px;line-height:1.7;color:var(--text-2);margin-top:8px">';
+        html += '<b>推荐 Resend（免备案，10K/月免费）</b>：注册 resend.com → API Keys 新建 → Host <code>smtp.resend.com</code> Port 465 SSL User <code>resend</code> Pass 填 API Key，From 用已验证域名（如 <code>noreply@free-tokens.org</code>），DNS 按 Resend 提示加 SPF/DKIM。<br>';
+        html += '<b>阿里云邮件推送</b>：控制台建发信域名 → Host <code>smtp.qcloudmail.com</code> / <code>smtpdm.aliyun.com</code>，按需选 465/587。<br>';
+        html += '<b>通用</b>：From 需与账号/域名一致，否则易进垃圾箱；465 选 SSL，587 选 STARTTLS。</div></details>';
         html += '</div></div>';
         // 测试发送
         html += '<div class="ai-judge-card" style="margin:0 0 18px"><div class="ai-judge-card__head">' + ic('send') + ' 测试发送</div>';
-        html += '<div style="display:flex;gap:8px"><input class="input" id="emTestTo" placeholder="收件人邮箱" style="flex:1"><button class="btn btn--primary btn--sm" id="emTestBtn">' + ic('send') + ' 发送测试</button></div></div>';
+        html += '<div style="display:flex;gap:8px;flex-wrap:wrap"><input class="input" id="emTestTo" placeholder="收件人邮箱（先保存配置再测）" style="flex:1;min-width:180px"><button class="btn btn--primary btn--sm" id="emTestBtn">' + ic('send') + ' 发送测试</button></div><p style="font-size:11px;color:var(--text-muted);margin:6px 0 0">成功即表示 SMTP 连通，流水会记“测试”一条。</p></div>';
         // 流水
         html += '<div class="ai-judge-card" style="margin:0 0 18px"><div class="ai-judge-card__head">' + ic('clock') + ' 最近发送流水（100 条）</div>';
         if (!logs.length) html += '<div class="dash-empty"><p class="dash-empty__text">暂无记录</p></div>';
@@ -1970,7 +1977,7 @@
           var b = {
             host: document.getElementById('emHost').value.trim(),
             port: parseInt(document.getElementById('emPort').value,10) || 465,
-            secure: document.getElementById('emSecure').checked,
+            secure: document.getElementById('emSecure').value === '1',
             user: document.getElementById('emUser').value.trim(),
             pass: document.getElementById('emPass').value,
             fromAddr: document.getElementById('emFrom').value.trim(),
