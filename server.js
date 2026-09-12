@@ -2705,11 +2705,6 @@ app.put('/api/admin/email/settings', auth.authMiddleware, auth.moderatorMiddlewa
   }
   mailer.saveConfig(cfg);
   mailer.resetTransporter();
-  // 记录 enabled 状态（脱敏后回写）
-  try {
-    const db = getDb();
-    db.prepare("UPDATE email_settings SET enabled = ?, last_test_msg = CASE WHEN ? != enabled THEN (CASE WHEN ?=1 THEN '已启用' ELSE '已停用' END) ELSE last_test_msg END WHERE id='default'").run(cfg.enabled ? 1 : 0, 0, cfg.enabled ? 1 : 0);
-  } catch (_) {}
   res.json({ ok: true, config: mailer.maskConfig() });
 });
 
@@ -2786,11 +2781,11 @@ app.get('/api/auth/nickname-check', auth.authMiddleware, (req, res) => {
 app.get('/api/items', auth.optionalAuth, (req, res) => {
   const db = getDb();
   const { category, search, sort } = req.query;
-  // limit 为 0 时不做分页（保持返回全量数组，向后兼容 CLI/测试）
-  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 0, 0), 50);
+  const hasLimit = req.query.limit !== undefined;
+  const limit = hasLimit ? Math.min(Math.max(parseInt(req.query.limit, 10) || 0, 0), 50) : 0;
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
 
-  let where = 'WHERE verified = 1';
+  let where = 'WHERE verified = 1 AND trashed = 0';
   const params = [];
 
   if (category) {
@@ -2818,6 +2813,8 @@ app.get('/api/items', auth.optionalAuth, (req, res) => {
   if (limit > 0) {
     sql += ' LIMIT ? OFFSET ?';
     qparams.push(limit, offset);
+  } else {
+    sql += ' LIMIT 500';
   }
 
   const items = db.prepare(sql).all(...qparams);
@@ -3295,7 +3292,8 @@ function mapTutorial(row, includeContent = false) {
 app.get('/api/tutorials', auth.optionalAuth, (req, res) => {
   const db = getDb();
   const { category, search, sort } = req.query;
-  const limit = Math.min(Math.max(parseInt(req.query.limit, 10) || 0, 0), 50);
+  const hasLimit = req.query.limit !== undefined;
+  const limit = hasLimit ? Math.min(Math.max(parseInt(req.query.limit, 10) || 0, 0), 50) : 0;
   const offset = Math.max(parseInt(req.query.offset, 10) || 0, 0);
   let where = 'WHERE verified = 1';
   const params = [];
@@ -3310,6 +3308,7 @@ app.get('/api/tutorials', auth.optionalAuth, (req, res) => {
   else sql += ' ORDER BY t.created_at DESC';
   const qparams = [...params];
   if (limit > 0) { sql += ' LIMIT ? OFFSET ?'; qparams.push(limit, offset); }
+  else sql += ' LIMIT 500';
   const rows = db.prepare(sql).all(...qparams);
   res.json(rows.map(r => mapTutorial(r)));
 });
@@ -5640,11 +5639,7 @@ function curlFetch(url, opts = {}) {
       if (err) {
         done();
         if (err.code === 'ENOENT') {
-          // 无 curl：回退 Node fetch（原逻辑，带浏览器头）
-          const controller = new AbortController();
-          const timer = setTimeout(() => controller.abort(), timeout);
-          fetch(url, { method, headers: Object.assign({}, BROWSER_HEADERS, headers), body, signal: controller.signal })
-            .finally(() => clearTimeout(timer)).then(resolve, reject);
+          reject(new Error('curl 未安装，无法安全请求（已禁用不安全回退）'));
           return;
         }
         const msg = (stderr || '').trim() || (err && err.message) || '连接失败';

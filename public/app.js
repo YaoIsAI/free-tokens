@@ -271,11 +271,11 @@
 
   if (authView) {
     authView.addEventListener('click', async function(e) {
-      if (e.target.id === 'switchToRegister') { e.preventDefault(); openAuth('register'); return; }
-      if (e.target.id === 'switchToLogin') { e.preventDefault(); openAuth('login'); return; }
-      if (e.target.id === 'switchToRecover') { e.preventDefault(); openAuth('recover'); return; }
-      if (e.target.id === 'wechatInviteLink') { e.preventDefault(); openWechat(); return; }
-      if (e.target.id === 'loginBtn') {
+      if (e.target.closest('#switchToRegister')) { e.preventDefault(); openAuth('register'); return; }
+      if (e.target.closest('#switchToLogin')) { e.preventDefault(); openAuth('login'); return; }
+      if (e.target.closest('#switchToRecover')) { e.preventDefault(); openAuth('recover'); return; }
+      if (e.target.closest('#wechatInviteLink')) { e.preventDefault(); openWechat(); return; }
+      if (e.target.closest('#loginBtn')) {
         var username = document.getElementById('loginUser')?.value.trim();
         var password = document.getElementById('loginPass')?.value;
         if (!username || !password) { showToast('请填写完整'); return; }
@@ -290,7 +290,7 @@
           window.dispatchEvent(new CustomEvent('auth-changed'));
         } catch (err) { showToast('登录失败'); }
       }
-      if (e.target.id === 'registerBtn') {
+      if (e.target.closest('#registerBtn')) {
         var rUsername = document.getElementById('regUser')?.value.trim();
         var rPassword = document.getElementById('regPass')?.value;
         var rInvite = document.getElementById('regInvite')?.value.trim();
@@ -313,7 +313,7 @@
         } catch (err) { showToast('注册失败'); }
       }
       // 邮箱发送重置链接
-      if (e.target.id === 'forgotBtn') {
+      if (e.target.closest('#forgotBtn')) {
         var fUser = document.getElementById('forgotUser')?.value.trim();
         var fEmail = document.getElementById('forgotEmail')?.value.trim();
         if (!fUser || !fEmail) { showToast('请填写用户名与邮箱'); return; }
@@ -326,7 +326,7 @@
         e.target.disabled = false; e.target.textContent = '发送重置邮件';
         return;
       }
-      if (e.target.id === 'doResetBtn') {
+      if (e.target.closest('#doResetBtn')) {
         var tok = e.target.getAttribute('data-token');
         var p1 = document.getElementById('resetPass')?.value;
         var p2 = document.getElementById('resetPass2')?.value;
@@ -341,7 +341,7 @@
         } catch (err) { showToast('重置失败'); }
         return;
       }
-      if (e.target.id === 'recoverBtn') {
+      if (e.target.closest('#recoverBtn')) {
         var rUser = document.getElementById('recPhone')?.value.trim() ? document.getElementById('recUser')?.value.trim() || document.getElementById('forgotUser')?.value.trim() : document.getElementById('recUser')?.value.trim() || document.getElementById('forgotUser')?.value.trim();
         // 兼容旧布局：优先取 recUser，否则 forgotUser
         rUser = rUser || document.getElementById('recUser')?.value.trim() || document.getElementById('forgotUser')?.value.trim();
