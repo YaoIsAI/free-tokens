@@ -214,6 +214,11 @@ const AVATAR_DIR = path.join(UPLOAD_DIR, 'avatars');
 const UPLOAD_MAX = 3 * 1024 * 1024; // 单张上限 3MB
 const UPLOAD_DAILY = 20;            // 每用户每日最多 20 张，防滥用
 const uploadCounts = new Map();     // userId -> { date, count }
+// 每日 0 点后首次请求触发懒清理 + 定时兜底清理（防 10k 用户常驻）
+setInterval(() => {
+  const today = new Date(Date.now() + 8*3600*1000).toISOString().slice(0,10);
+  for (const [k,v] of uploadCounts) if (v.date !== today) uploadCounts.delete(k);
+}, 3600*1000).unref();
 try { fs.mkdirSync(UPLOAD_DIR, { recursive: true }); } catch (_) {}
 try { fs.mkdirSync(AVATAR_DIR, { recursive: true }); } catch (_) {}
 // 删除本地上传的封面文件（仅匹配 /uploads/<16hex>.<ext>；http(s) 外链封面不动）
